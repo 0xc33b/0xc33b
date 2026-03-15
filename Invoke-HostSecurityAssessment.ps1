@@ -29,6 +29,14 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'SilentlyContinue'
 
+# Default output file: same directory the script was invoked from
+$script:RunDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
+$script:Timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+if (-not $OutFile) {
+    $ext = if ($JsonOutput) { 'json' } else { 'txt' }
+    $OutFile = Join-Path $script:RunDir "host-security-assessment-$($script:Timestamp).$ext"
+}
+
 # ---------------------------------------------------------------------------
 # REGION: Helpers
 # ---------------------------------------------------------------------------
@@ -781,19 +789,18 @@ function Invoke-Assessment {
             Findings    = $allFindings
         }
         $json = $output | ConvertTo-Json -Depth 5
-        if ($OutFile) { $json | Out-File -FilePath $OutFile -Encoding UTF8 } else { $json }
+        $json | Out-File -FilePath $OutFile -Encoding UTF8
+        Write-Host "[*] JSON report saved to: $OutFile"
         return
     }
 
     Write-Report -Findings $allFindings -Scores $scores
 
-    if ($OutFile) {
-        # Re-run with NoColor to plain text file
-        $script:NoColor = $true
-        $capture = & { Write-Report -Findings $allFindings -Scores $scores } 2>&1 | Out-String
-        $capture | Out-File -FilePath $OutFile -Encoding UTF8
-        Write-Color "[*] Report saved to: $OutFile" Green
-    }
+    # Always write a plain-text copy alongside the console output
+    $script:NoColor = $true
+    $capture = & { Write-Report -Findings $allFindings -Scores $scores } 2>&1 | Out-String
+    $capture | Out-File -FilePath $OutFile -Encoding UTF8
+    Write-Color "[*] Report saved to: $OutFile" Green
 }
 
 Invoke-Assessment
